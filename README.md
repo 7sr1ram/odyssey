@@ -1,14 +1,14 @@
-# Odyssey — night-safety routing for Southampton
+# Odyssey — walking-route comparison for Southampton
 
-> We help someone walking home late in Southampton choose streets the data
-> says are safer, using an AI model trained on real Police UK street crime
-> and OpenStreetMap lighting, with live Environment Agency tide and flood
-> data — showing every number's source, date, and what we don't know.
+> Odyssey helps Southampton walkers compare mapped routes using travel time,
+> Athena's historical-crime model and their own street preferences. It shows
+> missing data so people can make an informed choice; no route is guaranteed safe.
 
 Odyssey is the exemplar project for the **SotonShip** Coastal City track: a
-night-safety route planner whose navigation engine, **Athena**, scores every
-walking segment in Southampton with a trained risk model and plans Safest /
-Shortest / Balanced routes with plain-English, honest explanations.
+walking-route prototype whose navigation engine, **Athena**, scores mapped
+segments and compares Shortest / Model-preferred / Balanced routes. Preferences
+for mapped lighting, stairs, steep gradients, shelter and terrain affect route
+selection separately from the historical-crime model.
 
 ## Repo map
 
@@ -53,41 +53,42 @@ popup cites Police UK with the month of the data.
 
 ## AI at the core
 
-Athena's risk model is a logistic regression (19 standardised features)
+Athena's model is a logistic regression (13 standardised features)
 trained by the pipeline on the real crime data, with a temporal split:
 trained on months to Jul 2026, evaluated on the held-out month Aug 2026.
 **AUC 0.971**, against **0.866** for a baseline that predicts risk from last
-month's crime alone. The router consumes the model's continuous probability
-per segment with a 12-minute detour bound, and when an area offers no real
-safety gain it says so instead of pretending. Full model card, coefficients
+month's crime alone. The router uses the model's score per segment with a
+12-minute detour bound. This is a model comparison, not a validated estimate
+of an individual's safety. Full model card, coefficients
 and honesty notes: `odyssey-city-data/entities/model.json`.
 
 ## Honesty by design
 
-- 45% of the walking network has no lighting data: rendered grey-dashed,
-  labelled "risk unknown", never scored by the model.
+- About 45% of mapped walking segments have no lighting data: rendered
+  grey-dashed and labelled as a data gap, never given a reassuring band.
 - Police UK blurs crime locations to a street point; snapping distances are
   recorded and the blurring is stated in the UI.
-- No time-of-day in the crime data: the model predicts reported street crime
-  generally; lighting and isolation carry the night weighting.
+- The crime data has no time-of-day. Lighting and terrain preferences affect
+  the route choice, but the model does not prove a route is safer at night.
+- Google Maps receives only the start and destination and may calculate a
+  different walking route from the one shown in Odyssey.
 - Offline or out of coverage, the app says what is stale or unavailable
   instead of faking liveness.
 
 ## Business case (short version)
 
-Universities' student-safety budgets, the council's community-safety team,
-or the city-centre BID pay for a per-term licence. Running cost is a static
-site plus one ~4-minute monthly retrain on public data — effectively zero
-infrastructure. Second city: swap the OSM area id, bbox and Police UK sample
-points; the whole pipeline is city-parameterised. Full version in
+Potential pilot funders include universities, the council's community-safety
+team and the city-centre BID. A pilot would need user testing, validated route
+claims and measured hosting and update costs before a licence could be offered.
+A second city needs local data, licence checks and fresh validation; changing
+the geographic configuration alone is not enough. Full version in
 `odyssey-city-data/README.md`.
 
 ## Demo script
 
-In `odyssey-city-data/README.md` — opens on the honesty stat (45% unknown),
-peaks on the Shirley→centre trip (shortest route passes 265 reported street
-crimes; Athena's safest passes 13 for +7 min), and closes on the live
-Environment Agency gauge reading.
+Show a real Southampton journey, compare all three route profiles and point
+out any missing lighting data. The live Environment Agency reading is context
+only; it does not currently change the chosen route.
 
 ## Disclosure
 
