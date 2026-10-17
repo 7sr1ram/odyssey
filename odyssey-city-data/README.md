@@ -1,15 +1,14 @@
 # Odyssey — live-data exemplar for SotonShip
 
-**One sentence:** *We help someone walking home late in Southampton choose
-streets the data says are safer, using an AI model trained on real Police UK
-street crime and OpenStreetMap lighting, with live Environment Agency flood
-and tide data — and we show every number's source, date, and what we don't
-know.*
+**One sentence:** *Odyssey helps Southampton walkers compare mapped routes
+using travel time, a historical-crime model and their own street preferences,
+while showing where data is missing. No route is guaranteed safe.*
 
-Odyssey is a night-safety route planner for Southampton. Its navigation
-engine **Athena** scores every walking segment with a trained risk model,
-offers Safest / Shortest / Balanced routes with plain-English explanations,
-hands off to Google Maps, and reports live flood conditions. It is a static
+Odyssey is a walking-route comparison prototype for Southampton. Its navigation
+engine **Athena** scores mapped segments with a trained model, offers
+Shortest / Model-preferred / Balanced routes with plain-English explanations,
+hands off to Google Maps, and displays live flood information as context.
+It is a static
 web app: no backend, no accounts, no API keys — every data source is public
 and credited.
 
@@ -51,19 +50,21 @@ generated from `data_manifest.json`.
 
 ## The AI at the core (Athena risk model)
 
-Remove the model and Odyssey has no product: no risk bands, no safest
-routing, no explanations. The model is trained by the pipeline on real data:
+The trained model supports Athena's street score and the model-preferred
+route. The app still has a distance-focused route without it. The model is
+trained by the pipeline on historical records:
 
-- **Type:** logistic regression (L2-regularised, 19 standardised features)
+- **Type:** logistic regression (L2-regularised, 13 standardised features)
 - **Labels:** real Police UK street crimes snapped to walking segments
-- **Features:** lighting (OSM lit tag / documented assumption / unknown),
-  highway type, isolation, tide exposure, nightlife density, distance to
-  24/7 venues, and lagged crime counts
+- **Features:** segment length, highway type, nightlife density, distance to
+  the city centre and lagged crime counts. Lighting, steepness, shelter and
+  terrain are separate route preferences, not features in this model.
 - **Honest split:** trained on months up to 2026-07, evaluated on the
   held-out month **2026-08**: **AUC 0.971** vs **0.866** for a baseline that
   predicts from last month's crime alone — the comparison the brief asks for
-- **Output:** each segment's predicted probability of a reported street crime
-  next month; bands are documented quantiles (top 10% high, 75th–90th medium)
+- **Output:** a score for a reported street crime in the next month of the
+  evaluation data, not personal safety odds; bands are documented quantiles
+  (top 10% higher, 75th–90th medium)
 - **In the router:** Athena's Dijkstra consumes the continuous probability
   (not just the band) as extra cost per metre, with a 12-minute detour bound
 
@@ -72,16 +73,18 @@ Model card with coefficients, train/test months and honesty notes:
 
 ## What's honestly real, and the failure cases we show
 
-- **45% of the walking network has no lighting data.** OSM has no lighting
-  survey for most footpaths. We render those grey-dashed and label them
-  "risk unknown" — the model never scores them. That's the demo's opening.
+- **About 45% of mapped walking segments have no lighting data.** We render
+  those grey-dashed and label the model band unknown rather than guessing.
 - **Police UK blurs crime locations** to a nearby street point. We snap each
   crime to the nearest walking segment (≤120 m, snap distance recorded) and
   say so in the popup.
 - **No time-of-day in Police UK data.** The model predicts reported street
-  crime generally; lighting and isolation features carry the night weighting.
-- **When "safest" can't help, it says so.** In uniformly high-risk areas the
-  app states that reported crime is similar on all options.
+  crime generally. Route preferences can favour mapped lighting but cannot
+  turn historical data into evidence about safety at night.
+- **When the model-preferred route has no lower nearby report count**, the
+  app says so; the model may have considered other signals.
+- **Google Maps handoff:** only start and destination are passed, so Google
+  may calculate a different walking path.
 - **Out of coverage / offline:** outside the Southampton bbox the router says
   so; offline the live EA panel falls back to the dated build snapshot,
   labelled "offline, not live".
@@ -90,18 +93,14 @@ Model card with coefficients, train/test months and honesty notes:
 
 - **User:** people walking home late at night — Southampton has ~40,000
   students and a night-time economy along Bevois Valley and the waterfront.
-- **Who pays:** university student-safety budgets and Students' Union
-  (orientation weeks), the council's community-safety team (public-health
-  duty), and the Business Improvement District for the night-time economy.
-  Universities already fund safety-escort and bus services; Odyssey is a
-  per-term licence on top of data they already publish.
-- **Running cost:** a static web app + one 4-minute monthly retrain
-  (public data, no paid APIs). Effectively £0 infrastructure; the cost is
-  the monthly retrain and support.
+- **Potential funders:** a university, accommodation provider, council
+  community-safety team or Business Improvement District. A paid pilot needs
+  user validation and evidence of value before a licence claim is credible.
+- **Running cost:** static hosting, data updates, retraining and support;
+  measure these before quoting a price.
 - **Second city:** the pipeline is already city-parameterised — swap the OSM
-  area id, the bbox, and the Police UK sample points and it rebuilds for any
-  English/Welsh city. Lighting data quality varies by city, and the unknown
-  rendering is honest about that.
+  area id, the bbox, and the Police UK sample points are starting changes.
+  Every new city also needs data licensing checks, calibration and testing.
 
 ## Disclosure (track rules)
 
@@ -117,17 +116,17 @@ card, and a live demo.
 1. **Open on the honesty stat.** Grey dashed segments everywhere:
    "45% of Southampton's paths have no lighting data. We show what we don't
    know — every grey line is unscorable, by design."
-2. **Shirley → city centre.** Shortest passes **265 reported street crimes**
-   (real Police UK data); Athena's Safest route passes **13** for +7 min.
-   Read the model card line in the panel: AUC 0.971 vs 0.866 baseline.
+2. **Shirley → city centre.** Compare the three route profiles using their
+   actual displayed times, bands and missing-data counts. The model card
+   reports AUC 0.971 versus a 0.866 baseline on held-out data.
 3. **Click a red segment** near the centre: real crime categories with the
-   Police UK credit and month. Click a grey one: "risk unknown."
+   Police UK credit and month. Click a grey one: lighting data is missing.
 4. **Live data moment:** the panel shows the real-time Woolston tide gauge
    reading fetched from the EA seconds ago, and active flood warnings.
-5. **St Denys honesty case:** all options are high-risk here; the app says so
-   instead of inventing a fake "safe" route.
-6. Hand off to Google Maps, report a route, show SOS (999/101 + official
-   guidance links).
+5. **St Denys honesty case:** compare the nearby report counts and show that
+   model preference does not always mean fewer reports.
+6. Hand off to Google Maps, noting it may redraw the path; show SOS
+   (999/101 + official guidance links).
 
 ## Licences & attribution
 
