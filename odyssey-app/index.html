@@ -4,29 +4,34 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Odyssey — Southampton</title>
+<link rel="icon" type="image/png" href="assets/odyssey-logo.png">
 <link rel="stylesheet" href="vendor/leaflet.css">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
 <div id="app">
   <aside id="panel">
     <header>
       <div class="head-row">
-        <h1>Odyssey</h1>
+        <h1 class="brand"><img src="assets/odyssey-logo.png" alt="Odyssey" width="138" height="138"></h1>
         <button id="prefs-open" class="prefs-btn" title="Route preferences">Preferences</button>
       </div>
-      <p class="tagline">Safest walking routes at night — Southampton · navigation by Athena</p>
+      <p class="tagline">Compare Southampton walking routes with Athena</p>
     </header>
 
     <section id="trip-form">
       <label for="dest">Where are you going?</label>
       <input type="text" id="dest" placeholder="e.g. Ocean Village" autocomplete="off">
-      <button id="plan">Find my safest route</button>
+      <button id="plan">Compare walking routes</button>
       <p class="hint">Starts from your GPS location. No signal? Click two points on the map instead (start, then destination).</p>
+      <div class="athena-note">
+        <img src="assets/athena-logo.png" alt="" width="50" height="50">
+        <div><strong>Athena route guide</strong><p>Athena compares mapped routes using historical data and your preferences. Its scores cannot guarantee personal safety.</p></div>
+      </div>
       <p class="status" id="status"></p>
     </section>
 
-    <section id="routes" class="hidden"></section>
+    <section id="routes" class="hidden" aria-label="Route comparisons" aria-live="polite"></section>
 
     <section id="live-section">
       <p class="live" id="live"></p>
@@ -62,7 +67,7 @@
   <dialog id="prefs-dialog">
     <form id="prefs-form" method="dialog">
       <h2>Route preferences</h2>
-      <p class="pref-sub">These change which route Athena picks — they never change the crime risk shown.</p>
+      <p class="pref-sub">These change which route Athena picks, not the underlying historical crime data. Unknown street features are not treated as known.</p>
 
       <label class="pref-row"><input type="checkbox" id="pref-lit" checked> Well-lit roads
         <span class="pref-foot" id="cov-lit"></span></label>
@@ -92,14 +97,15 @@
   </dialog>
 
   <button id="sos-open" title="Emergency SOS">SOS</button>
-  <div id="legend">
-    <span><i class="sw low"></i>low</span>
+  <div id="legend" aria-label="Athena model bands">
+    <strong>Athena bands:</strong>
+    <span><i class="sw low"></i>lower</span>
     <span><i class="sw med"></i>medium</span>
-    <span><i class="sw high"></i>high</span>
-    <span><i class="sw unknown"></i>risk unknown</span>
+    <span><i class="sw high"></i>higher</span>
+    <span><i class="sw unknown"></i>no lighting data</span>
   </div>
 </div>
 <script src="vendor/leaflet.js"></script>
-<script src="app.js?v=3"></script>
+<script src="app.js?v=5"></script>
 </body>
 </html>

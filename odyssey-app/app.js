@@ -84,15 +84,18 @@ function explanationFactors(segments, prefs) {
   const has = f => segments.some(f);
   const out = [];
   if (prefs.well_lit)
-    out.push(has(s => s.lighting === "no") ? "unlit stretch unavoidable" : "avoided unlit");
+    out.push(has(s => s.lighting === "no") ? "includes mapped unlit stretch" :
+      has(s => s.lighting === "unknown") ? "lighting data incomplete" : "no mapped unlit stretch");
   if (prefs.avoid_stairs)
-    out.push(has(s => s.highway_type === "steps") ? "stairs unavoidable" : "no stairs");
+    out.push(has(s => s.highway_type === "steps") ? "includes mapped stairs" : "no mapped stairs");
   if (prefs.avoid_steep)
-    out.push(has(s => s.steep === true) ? "steep unavoidable" : "no steep gradients");
+    out.push(has(s => s.steep === true) ? "includes mapped steep gradient" :
+      has(s => s.steep == null) ? "gradient data incomplete" : "no mapped steep gradient");
   if (prefs.sheltered)
     out.push(has(s => s.covered === true) ? "sheltered stretch" : "no sheltered cover mapped");
   if (prefs.terrain === "paved")
-    out.push(has(s => s.surface === "unpaved") ? "unpaved unavoidable" : "paved terrain");
+    out.push(has(s => s.surface === "unpaved") ? "includes mapped unpaved surface" :
+      has(s => s.surface == null) ? "surface data incomplete" : "mapped paved surface");
   return out;
 }
 
@@ -142,8 +145,8 @@ class MinHeap {
 /* Dijkstra over a per-segment penalty profile. Returns:
  * { segments: unique segs in order, chainLen: metres actually walked,
  *   steps: [{from,to,seg,len}] node hops } or null. */
-const MAX_EXTRA_MIN = 12;   // a safer route is only offered if the detour
-                            // stays within this many extra walking minutes
+const MAX_EXTRA_MIN = 12;   // limit extra walking time for the model-preferred
+                            // route; this is not a safety guarantee
 
 function findRoute(graph, startKey, destKey, profile, prefs) {
   const isNamed = typeof profile === "string";
@@ -194,12 +197,14 @@ function findRoute(graph, startKey, destKey, profile, prefs) {
 
 function routeStats(route) {
   const len = route.chainLen;
-  let worst = "low", unknownCount = 0;
+  let worst = "low", unknownCount = 0, knownCount = 0;
   for (const s of route.segments) {
     if (s.risk_band === "unknown") { unknownCount++; continue; }
+    knownCount++;
     if (BAND_RANK[s.risk_band] > BAND_RANK[worst]) worst = s.risk_band;
   }
-  return { len, minutes: len / WALK_M_PER_MIN, band: worst, unknownCount };
+  return { len, minutes: len / WALK_M_PER_MIN,
+    band: knownCount ? worst : "unknown", unknownCount };
 }
 
 /* Full route triad with the detour bound applied. Returns
@@ -218,7 +223,7 @@ function planTriad(graph, startKey, destKey, prefs) {
     if (routeStats(r).minutes - shortMin <= MAX_EXTRA_MIN) {
       safest = r;
       if (f < 1) safestNote =
-        `Best risk reduction Athena can offer within a ${MAX_EXTRA_MIN}-minute detour.`;
+        `Athena reduced its score preference to stay within a ${MAX_EXTRA_MIN}-minute detour.`;
       break;
     }
   }
@@ -243,26 +248,35 @@ function explain(route, altRoutes, crimes, havens, label) {
   const shortest = altRoutes.find(r => r.label === "Shortest");
   if (shortest && label !== "Shortest") {
     const dMin = Math.round(st.minutes - routeStats(shortest.route).minutes);
-    const lead = label === "Safest" ? "Takes the lit streets" : "Balances distance and safety";
+    const lead = label === "Model-preferred"
+      ? "Prioritises Athena's street scores" : "Balances distance and Athena's scores";
     parts.push(dMin < 3
-      ? `${lead}, for much the same walking time as the shortest option.`
+      ? `${lead}, with a similar estimated walk time to the shortest option.`
       : `${lead}; about ${dMin} min longer than the shortest option.`);
   } else {
-    parts.push("The most direct route Athena found.");
+    parts.push("Prioritises distance on mapped walking paths.");
   }
+
+  // Keep data gaps and environmental warnings visible even when later
+  // details are shortened to fit the route card.
+  if (st.unknownCount > 0) {
+    parts.push(`${st.unknownCount} segment${st.unknownCount > 1 ? "s" : ""} on this ` +
+      `route have no lighting data; their model band is unknown.`);
+  }
+  const tidal = route.segments.find(s => s.tide_exposed);
+  if (tidal) parts.push("Includes a waterside path that may be affected by high tide.");
 
   // what this route avoids vs the shortest route
   if (shortest && label !== "Shortest") {
-    const shortIds = new Set(shortest.route.segments.map(s => s.id));
     const avoided = shortest.route.segments.filter(s => !segIds.has(s.id) &&
       (s.risk_band === "high" || s.risk_band === "unknown"));
     if (avoided.length) {
       const s = avoided[0];
-      const what = s.lighting === "no" ? "unlit" :
-        (s.lighting === "unknown" ? "no-lighting-data" : "higher-risk");
+      const what = s.lighting === "no" ? "mapped unlit stretch" :
+        (s.lighting === "unknown" ? "stretch without lighting data" : "higher model band");
       const nm = s.name === "unnamed path" ? "path" : s.name +
         ((s.highway_type === "footway" || s.highway_type === "path") ? " path" : "");
-      parts.push(`Avoids the ${what} ${nm}.`);
+      parts.push(`Avoids a ${what} on ${nm}.`);
     }
   }
 
@@ -271,35 +285,26 @@ function explain(route, altRoutes, crimes, havens, label) {
     .sort((a, b) => b.crime_count_90d - a.crime_count_90d);
   if (withCrime.length) {
     const s = withCrime[0];
-    const nm = s.name === "unnamed path" ? "this route" : s.name;
-    parts.push(`${s.crime_count_90d} street crimes were reported on or near ` +
-      `${nm} in the last 3 months (Police UK, to ${s.last_crime_month}).`);
-  }
-
-  // unknowns — the honesty case
-  if (st.unknownCount > 0) {
-    parts.push(`${st.unknownCount} segment${st.unknownCount > 1 ? "s" : ""} on this ` +
-      `route have no lighting data — risk unknown there.`);
+    const nm = s.name === "unnamed path" ? "one segment of this route" : s.name;
+    parts.push(`${s.crime_count_90d} street crime reports are mapped on or near ` +
+      `${nm} in the dataset's three-month window (latest nearby report: ${s.last_crime_month}).`);
   }
 
   // safe havens
   const near = havens.filter(h => route.segments.some(s =>
     s.coordinates.some(c => distM(c, [h.lat, h.lng]) < 150)));
   const haven = near.find(h => /24\/7/.test(h.hours)) || near[0];
-  if (haven) parts.push(`Passes ${haven.name}${/24\/7/.test(haven.hours) ? " (staffed 24/7)" : ""}.`);
+  if (haven) parts.push(`Near ${haven.name} (listed hours: ${haven.hours}; check before relying).`);
 
-  // tidal paths
-  const tidal = route.segments.find(s => s.tide_exposed);
-  if (tidal) parts.push("Uses a tidal waterside path that can flood at high tide.");
-
-  // honesty: if the safest option doesn't actually reduce exposure, say so
-  if (label === "Safest" && shortest) {
+  // Do not bury this warning behind the shorter explanatory copy.
+  let comparisonWarning = "";
+  if (label === "Model-preferred" && shortest) {
     const exposure = (rr) => rr.segments.reduce((t, s) => t + (s.crime_count_90d || 0), 0);
     if (exposure(route) >= exposure(shortest.route))
-      parts.push("In this area reported crime is similar on all reasonable options — Athena cannot reduce it further here.");
+      comparisonWarning = "Nearby incident counts are not lower than on Shortest; Athena also uses other signals.";
   }
 
-  return parts.slice(0, 3).join(" ");
+  return [...parts.slice(0, 3), comparisonWarning].filter(Boolean).join(" ");
 }
 
 /* Google Maps handoff: origin and destination only, travelmode=walking.
@@ -394,12 +399,13 @@ if (typeof document !== "undefined") (async function () {
       .sort((a, b) => b[1] - a[1]).slice(0, 4)
       .map(([k, v]) => `${esc(k)} (${v})`).join(", ");
     const rows = [
-      ["Risk band", s.risk_band === "unknown" ? "UNKNOWN (no lighting data)" :
-        s.risk_band.toUpperCase() + (s.risk_score != null ? ` · model risk ${(s.risk_score*100).toFixed(1)}%/month` : "")],
+      ["Athena band", s.risk_band === "unknown" ? "UNKNOWN (no lighting data)" :
+        s.risk_band.toUpperCase() + (s.risk_score != null
+          ? ` · score ${(s.risk_score*100).toFixed(1)}/100 (not personal safety odds)` : "")],
       ["Lighting", s.lighting === "unknown"
         ? "data unavailable (no OSM lighting survey)"
         : s.lighting + (s.lighting_source.startsWith("assumed") ? " (assumed: UK main-road default)" : " (OSM lit tag)")],
-      ["Street crimes (90d)", s.crime_count_90d +
+      ["Nearby reports (data window)", s.crime_count_90d +
         (s.last_crime_month ? ` (latest ${s.last_crime_month})` : " (none recorded)")],
       ["Crimes (7 months)", s.crime_count_6m + (cats ? `<br>${cats}` : "")],
       ["Isolation score", s.isolation_score + " / 10"],
@@ -429,7 +435,8 @@ if (typeof document !== "undefined") (async function () {
   for (const h of havens) {
     L.circleMarker([h.lat, h.lng], {
       radius: 5, color: "#7dd3fc", fillColor: "#7dd3fc", fillOpacity: 0.9,
-    }).bindPopup(`<b>Safe haven</b><br>${esc(h.name)}<br>${esc(h.hours)}`).addTo(map);
+    }).bindPopup(`<b>Listed staffed place</b><br>${esc(h.name)}<br>` +
+      `${esc(h.hours)}<br>Check current hours before relying on it.`).addTo(map);
   }
 
   /* honesty + model coverage line */
@@ -439,9 +446,9 @@ if (typeof document !== "undefined") (async function () {
   const monthSpan = model && model.training ? model.training.test_month : "";
   $("coverage").innerHTML =
     `${walkable.length.toLocaleString()} walking segments · ` +
-    `${counts.low.toLocaleString()} low · ${counts.medium.toLocaleString()} medium · ` +
-    `${counts.high} high · <b>${counts.unknown.toLocaleString()} unknown</b> ` +
-    `(${pct}% have no lighting data — we show it, not hide it).` +
+    `${counts.low.toLocaleString()} lower model band · ${counts.medium.toLocaleString()} medium · ` +
+    `${counts.high.toLocaleString()} higher model band · <b>${counts.unknown.toLocaleString()} without lighting data</b> ` +
+    `(${pct}% of mapped segments).` +
     (model ? `<br><span class="modelcard">Athena model: trained on ${crimes.length.toLocaleString()} ` +
       `real Police UK street crimes (${model.training.train_months[0]}–${model.training.test_month}); ` +
       `AUC ${model.evaluation.auc_model} vs ${model.evaluation.auc_baseline_recent_crime} ` +
@@ -455,7 +462,7 @@ if (typeof document !== "undefined") (async function () {
     $("sources").innerHTML =
       `<details><summary>Data sources &amp; freshness (click)</summary>` +
       `<table class="src">${rows}</table>` +
-      `<p class="hint">Licences: OSM ODbL · Police UK &amp; EA OGL v3 · CARTO tiles.</p></details>`;
+      `<p class="hint">Licences: OSM ODbL · Police UK &amp; EA OGL v3. Basemap uses OSM data.</p></details>`;
   }
 
   /* LIVE panel: real-time Environment Agency data, fetched in this browser */
@@ -529,7 +536,7 @@ if (typeof document !== "undefined") (async function () {
       c.classList.toggle("selected", i === idx);
       const btn = c.querySelector(".choose");
       if (btn) { btn.disabled = i === idx;
-                 btn.textContent = i === idx ? "✓ Chosen" : "Choose this route"; }
+                 btn.textContent = i === idx ? "Viewing route" : "View on map"; }
     });
   }
   function clearRouteLayers() {
@@ -562,47 +569,56 @@ if (typeof document !== "undefined") (async function () {
       routesEl.innerHTML = "<p class='hint'>Start or destination is too far from the walking network — pick a point nearer a street or path.</p>";
       return;
     }
+    if (a.key === b.key) {
+      routesEl.innerHTML = "<p class='hint'>Start and destination are on the same mapped point. Choose a different destination.</p>";
+      return;
+    }
     const prefs = loadPrefs();
     const triad = planTriad(graph, a.key, b.key, prefs);
     const results = [];
-    if (triad.safest) results.push({ label: "Safest", profile: "safest", route: triad.safest, note: triad.safestNote });
     if (triad.shortest) results.push({ label: "Shortest", profile: "shortest", route: triad.shortest });
+    if (triad.safest) results.push({ label: "Model-preferred", profile: "safest", route: triad.safest, note: triad.safestNote });
     if (triad.balanced) results.push({ label: "Balanced", profile: "balanced", route: triad.balanced });
     if (!results.length) {
       routesEl.innerHTML = "<p class='hint'>No walking route found between those points.</p>";
       return;
     }
-    const uniq = [];
+    const seenPaths = new Map();
     for (const r of results) {
-      if (!uniq.some(u => u.route.segments.map(s => s.id).join()
-                       === r.route.segments.map(s => s.id).join())) uniq.push(r);
+      const path = r.route.steps.map(step => `${step.from}:${step.to}:${step.seg}`).join("|");
+      r.sameAs = seenPaths.get(path);
+      if (!r.sameAs) seenPaths.set(path, r.label);
     }
 
-    routesEl.innerHTML = "";
-    uniq.forEach((r, idx) => {
+    routesEl.innerHTML = `<p class="route-caveat">Athena uses historical crime data${monthSpan ? ` through ${monthSpan}` : ""}, not live incident reports. These routes are not safety guarantees. Grey paths lack lighting data. Google Maps may choose a different route.</p>`;
+    const purposes = {
+      shortest: "Prioritises distance on mapped paths.",
+      safest: "Prioritises Athena's score, with a 12-minute detour limit.",
+      balanced: "Balances distance with Athena's score.",
+    };
+    results.forEach((r, idx) => {
       const st = routeStats(r.route);
       r.route.gmaps_url = routeToGmapsUrl(graph, r.route);
       r.route.explanation_factors = explanationFactors(r.route.segments, prefs);
-      const text = [r.note, explain(r.route, uniq, crimes, havens, r.label)]
+      const text = [r.note, explain(r.route, results, crimes, havens, r.label)]
         .filter(Boolean).join(" ");
-      const isBest = st.band === "low" || (idx === 0 && r.label === "Safest");
 
       const card = document.createElement("div");
-      card.className = "route-card" + (isBest ? " best" : "");
+      card.className = "route-card";
       card.innerHTML =
         `<div class="route-head"><span class="route-title">${r.label}</span>` +
-        `<span class="badge ${st.band}">${st.band === "unknown" ? "risk unknown" : st.band + " risk"}</span></div>` +
+        `<span class="badge ${st.band}">${st.band === "unknown" ? "lighting unknown" : st.band + " model band"}</span></div>` +
+        `<p class="route-purpose">${purposes[r.profile]}` +
+        (r.sameAs ? ` Same mapped path as ${r.sameAs}.` : "") + `</p>` +
         `<div class="route-meta"><b>ETA ${etaTime(st.minutes)}</b> · ${Math.round(st.minutes)} min · ${(st.len / 1000).toFixed(1)} km` +
-        (st.unknownCount ? ` · ${st.unknownCount} unscored` : "") + `</div>` +
-        `<p class="route-explain">${text}</p>` +
+        (st.unknownCount ? ` · ${st.unknownCount} without lighting data` : "") + `</div>` +
+        `<p class="route-explain">${esc(text)}</p>` +
         (r.route.explanation_factors.length ? `<div class="factor-chips">` +
           r.route.explanation_factors.map(f => `<span class="chip">${esc(f)}</span>`).join("") +
           `</div>` : "") +
         `<div class="route-actions">` +
-        `<button class="choose" data-i="${idx}">Choose this route</button>` +
-        `<a class="gmaps" target="_blank" href="${r.route.gmaps_url}">Open in Google Maps</a>` +
-        `<button class="report" data-i="${idx}">Report this route</button></div>` +
-        `<p class="report-msg hidden" id="msg-${idx}">Thanks — saved. Athena retrains on monthly Police UK data; your report is kept for the next retrain.</p>`;
+        `<button class="choose" data-i="${idx}">View on map</button>` +
+        `<a class="gmaps" target="_blank" rel="noopener noreferrer" href="${r.route.gmaps_url}">Google Maps</a></div>`;
       routesEl.appendChild(card);
 
       const pts = [graph.nodes.get(r.route.steps[0].from).c]
@@ -622,20 +638,7 @@ if (typeof document !== "undefined") (async function () {
 
     routesEl.querySelectorAll(".choose").forEach(btn =>
       btn.addEventListener("click", () => selectRoute(+btn.dataset.i)));
-    routesEl.querySelectorAll(".report").forEach(btn =>
-      btn.addEventListener("click", () => {
-        const r = uniq[+btn.dataset.i];
-        const reports = JSON.parse(localStorage.getItem("odyssey_reports") || "[]");
-        reports.push({
-          ts: new Date().toISOString(),
-          route_label: r.label,
-          segment_ids: r.route.segments.map(s => s.id),
-          band: routeStats(r.route).band,
-        });
-        localStorage.setItem("odyssey_reports", JSON.stringify(reports));
-        $("msg-" + btn.dataset.i).classList.remove("hidden");
-        btn.disabled = true;
-      }));
+    routesEl.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   /* the core flow: type where you're going, start from where you are */

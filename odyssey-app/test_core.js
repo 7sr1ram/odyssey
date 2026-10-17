@@ -1,11 +1,14 @@
 /* Node test for the Odyssey routing core + real-data sanity — node test_core.js */
 "use strict";
 const fs = require("fs");
+const path = require("path");
 const core = require("./app.js");
-const segments = JSON.parse(fs.readFileSync("data/path_segments.json"));
-const crimes = JSON.parse(fs.readFileSync("data/incidents.json"));
-const havens = JSON.parse(fs.readFileSync("data/safe_havens.json"));
-const model = JSON.parse(fs.readFileSync("data/model.json"));
+const data = (name) => JSON.parse(fs.readFileSync(path.join(__dirname, "data", name)));
+const segments = data("path_segments.json");
+const crimes = data("incidents.json");
+const havens = data("safe_havens.json");
+const model = data("model.json");
+let fail = 0;
 console.log(`segments: ${segments.length}, real crimes: ${crimes.length}, havens: ${havens.length}`);
 console.log(`model: AUC ${model.evaluation.auc_model} vs baseline ${model.evaluation.auc_baseline_recent_crime} (test month ${model.training.test_month})`);
 const banned = ["lit_no","lit_partial","lit_unknown","isolation","tide_exposed","haven_300m"];
@@ -38,20 +41,19 @@ const trips = [
   ["St Denys -> Cobden Bridge",[50.9215,-1.3905],[50.9245,-1.3780], 2.5],
   ["Shirley -> city centre",  [50.9105,-1.4325], [50.9045,-1.4025], 4.5],
 ];
-let fail = 0;
 for (const [name, from, to, maxKm] of trips) {
   console.log(`\n== ${name} ==`);
   const a = core.snap(graph, from), b = core.snap(graph, to);
   const triad = core.planTriad(graph, a.key, b.key);
   const routes = [];
-  for (const [label, route] of [["Safest", triad.safest], ["Shortest", triad.shortest], ["Balanced", triad.balanced]]) {
+  for (const [label, route] of [["Model-preferred", triad.safest], ["Shortest", triad.shortest], ["Balanced", triad.balanced]]) {
     if (!route) { console.log(`  ${label}: NO ROUTE`); fail++; continue; }
     const st = core.routeStats(route);
     const high = route.segments.filter(s => s.risk_band === "high").length;
     const crimes90 = route.segments.reduce((t, s) => t + (s.crime_count_90d||0), 0);
     console.log(`  ${label}: ${(st.len/1000).toFixed(2)}km, ${Math.round(st.minutes)}min, ` +
       `band=${st.band}, high-segs=${high}, recent-crimes-on-route=${crimes90}, unscored=${st.unknownCount}` +
-      (label === "Safest" && triad.safestNote ? `  [bound applied]` : ""));
+      (label === "Model-preferred" && triad.safestNote ? `  [bound applied]` : ""));
     routes.push({ label, route });
     if (label === "Shortest" && st.len / 1000 > maxKm) { console.log(`  !! shortest ${(st.len/1000).toFixed(2)}km > ${maxKm}km`); fail++; }
   }
@@ -99,7 +101,17 @@ const chips = core.explanationFactors(
   [{lighting:"yes", highway_type:"residential"}, {lighting:"no", highway_type:"footway", surface:"unpaved"}],
   { ...core.DEFAULT_PREFS, terrain: "paved" });
 console.log("  chips:", chips.join(" | "));
-if (chips.join() !== "unlit stretch unavoidable,unpaved unavoidable") { console.log("  !! chips mismatch vs preferences.py fixture"); fail++; }
+if (chips.join() !== "includes mapped unlit stretch,includes mapped unpaved surface") {
+  console.log("  !! chips mismatch vs preferences.py fixture"); fail++;
+}
+const unknownRoute = { chainLen: 100, segments: [{ risk_band: "unknown" }] };
+if (core.routeStats(unknownRoute).band !== "unknown") {
+  console.log("  !! all-unknown route displayed a reassuring model band"); fail++;
+}
+const gapChip = core.explanationFactors([{ lighting: "unknown" }], core.DEFAULT_PREFS);
+if (!gapChip.includes("lighting data incomplete")) {
+  console.log("  !! missing lighting data not disclosed in route factors"); fail++;
+}
 
 // toggling a preference must actually change a route that has alternatives
 const pa = core.snap(graph, [50.9215, -1.3905]), pb = core.snap(graph, [50.9245, -1.3780]);

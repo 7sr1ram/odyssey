@@ -18,8 +18,16 @@ html, body { margin: 0; height: 100%; font-family: system-ui, sans-serif; backgr
   width: 340px; min-width: 340px; background: var(--panel);
   padding: 18px; overflow-y: auto; border-right: 1px solid var(--border);
 }
+#panel header {
+  margin: -18px -18px 16px; padding: 12px 18px 14px;
+  background: radial-gradient(circle at 8% 0%, rgba(19, 190, 210, 0.20), transparent 49%),
+              linear-gradient(145deg, #09243d, #111b2c 75%);
+  border-bottom: 1px solid rgba(125, 211, 252, 0.18);
+}
 #panel h1 { margin: 0; font-size: 26px; letter-spacing: 0.5px; }
-.tagline { margin: 4px 0 18px; color: var(--muted); font-size: 13px; }
+.brand { line-height: 0; }
+.brand img { display: block; width: 138px; height: auto; filter: drop-shadow(0 5px 12px rgba(0, 0, 0, 0.25)); }
+.tagline { margin: 2px 0 0; color: #d6e9f5; font-size: 13px; line-height: 1.45; }
 label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
 select, input[type="datetime-local"] {
   width: 100%; padding: 8px; background: var(--bg); color: var(--text);
@@ -32,6 +40,21 @@ button {
 #plan { width: 100%; margin-top: 14px; background: var(--accent); color: #08121c; font-weight: 600; padding: 11px; }
 #plan:hover { filter: brightness(1.1); }
 .hint { color: var(--muted); font-size: 12px; }
+.athena-note {
+  display: flex; align-items: flex-start; gap: 10px; margin-top: 12px;
+  padding: 10px; border: 1px solid rgba(255, 114, 36, 0.32); border-radius: 10px;
+  background: linear-gradient(120deg, rgba(255, 114, 36, 0.11), rgba(125, 211, 252, 0.05));
+}
+.athena-note img { width: 50px; height: 50px; object-fit: contain; flex: none; }
+.athena-note strong { display: block; margin: 1px 0 3px; color: #ffb27e; font-size: 13px; }
+.athena-note p { margin: 0; color: var(--text); font-size: 12px; line-height: 1.45; }
+.safety-note, .route-caveat {
+  border-left: 3px solid var(--accent); padding: 8px 10px;
+  background: rgba(125, 211, 252, 0.08); color: var(--text);
+  font-size: 12px; line-height: 1.45;
+}
+.safety-note { margin: 10px 0 0; }
+.route-caveat { margin: 12px 0 4px; }
 
 #map { flex: 1; }
 
@@ -41,9 +64,10 @@ button {
   margin-top: 14px; border: 1px solid var(--border); border-radius: 8px; padding: 12px;
   background: var(--bg);
 }
-.route-card.best { border-color: var(--low); }
+.route-card.selected { border-color: rgba(125, 211, 252, 0.75); box-shadow: 0 0 0 1px rgba(125, 211, 252, 0.15); }
 .route-head { display: flex; justify-content: space-between; align-items: center; }
 .route-title { font-weight: 600; }
+.route-purpose { color: var(--muted); font-size: 12px; line-height: 1.4; margin: 6px 0; }
 .badge { font-size: 11px; padding: 2px 8px; border-radius: 10px; color: #08121c; font-weight: 700; text-transform: uppercase; }
 .badge.low { background: var(--low); } .badge.medium { background: var(--med); }
 .badge.high { background: var(--high); color: #fff; } .badge.unknown { background: var(--unknown); }
@@ -55,8 +79,6 @@ button {
   background: var(--border); color: var(--text); border-radius: 6px;
 }
 .route-actions .gmaps { background: #cbe6f7; color: #062338; font-weight: 600; }
-.report-msg { font-size: 12px; color: var(--low); margin-top: 6px; }
-
 #about { margin-top: 24px; font-size: 12px; color: var(--muted); }
 .coverage { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
 .sources { line-height: 1.5; }
@@ -78,7 +100,7 @@ button {
 #sos-close { width: 100%; margin-top: 6px; }
 
 #legend {
-  position: absolute; left: 356px; bottom: 12px; z-index: 900;
+  position: absolute; left: 356px; bottom: 28px; z-index: 900;
   background: rgba(14,17,22,0.88); border: 1px solid var(--border); border-radius: 8px;
   padding: 8px 12px; font-size: 12px; color: var(--text); display: flex; gap: 12px;
 }
@@ -139,16 +161,18 @@ button { touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
     border-right: 0; border-top: 1px solid var(--border);
     padding: 14px 14px calc(16px + env(safe-area-inset-bottom));
   }
+  #panel header { margin: -14px -14px 14px; padding: 9px 14px 12px; }
+  .brand img { width: 104px; }
   #map { flex: 1; min-height: 54vh; }
   #panel h1 { font-size: 22px; }
-  .tagline { font-size: 12px; margin-bottom: 12px; }
+  .tagline { font-size: 12px; }
   #plan { min-height: 50px; font-size: 16px; margin-top: 10px; }
   .route-actions a, .route-actions button { padding: 13px 7px; }
   #sos-open {
     bottom: calc(46vh + 18px); right: 12px;
     width: 64px; height: 64px; font-size: 17px;
   }
-  #legend { left: 10px; bottom: 10px; flex-wrap: wrap; gap: 8px; max-width: 70vw; }
+  #legend { left: 10px; bottom: 28px; flex-wrap: wrap; gap: 8px; max-width: 70vw; }
   .sos-card { width: calc(100vw - 48px); max-width: 340px; margin: 0 16px; }
   .leaflet-popup-content { font-size: 12px; max-width: 80vw; }
 }
