@@ -6,7 +6,7 @@
 
 Odyssey is the exemplar project for the **SotonShip** Coastal City track: a
 walking-route prototype whose navigation engine, **Athena**, scores mapped
-segments and compares Shortest / Model-preferred / Balanced routes. Preferences
+segments and compares Shortest / Lower risk / Balanced routes. Preferences
 for mapped lighting, stairs, steep gradients, shelter and terrain affect route
 selection separately from the historical-crime model.
 
@@ -14,7 +14,7 @@ selection separately from the historical-crime model.
 
 | Path | What it is |
 |---|---|
-| `odyssey-app/` | The web app. Static, no backend, no keys. Run it with any static server. |
+| `odyssey-app/` | The web app. Static, no backend, no keys. Run it with any static server. Its settings include three saved colour themes. |
 | `odyssey-city-data/` | The live data pipeline: `build_odyssey_data.py` fetches every source, trains the Athena model, and emits `entities/*.json` |
 | `odyssey-city-data/entities/` | Generated data (real crimes, scored segments, model card, source manifest) |
 | `GUIDE.md` | The complete plain-English walkthrough: what it is, how it works, how to run it, how to publish it |
@@ -45,7 +45,7 @@ Run the routing tests on the real data: `node odyssey-app/test_core.js`.
 | OpenStreetMap / Overpass | 23,144 walking ways, geometry + `lit` tags | ODbL 1.0 |
 | Environment Agency flood-monitoring API | live Woolston tide gauge + flood warnings, fetched live in the browser | OGL v3 |
 | OSM nightlife venues | model features | ODbL 1.0 |
-| Curated safe havens | 15 real staffed places, hours checked Oct 2026 | this repo |
+| Curated safe havens | 7 listed staffed venues with source notes; confirm current access and hours | this repo |
 
 The app renders this provenance itself: the **Data sources & freshness**
 panel is generated from `entities/data_manifest.json`, and each segment
@@ -56,9 +56,10 @@ popup cites Police UK with the month of the data.
 Athena's model is a logistic regression (13 standardised features)
 trained by the pipeline on the real crime data, with a temporal split:
 trained on months to Jul 2026, evaluated on the held-out month Aug 2026.
-**AUC 0.971**, against **0.866** for a baseline that predicts risk from last
-month's crime alone. The router uses the model's score per segment with a
-12-minute detour bound. This is a model comparison, not a validated estimate
+**AUC 0.971** on the held-out month, against **0.866** for a one-month
+crime baseline and **0.962** for a stronger two-month crime-and-length rule.
+The router uses the model's score per segment with a 12-minute detour bound.
+This is a model comparison, not a validated estimate
 of an individual's safety. Full model card, coefficients
 and honesty notes: `odyssey-city-data/entities/model.json`.
 
@@ -70,8 +71,8 @@ and honesty notes: `odyssey-city-data/entities/model.json`.
   recorded and the blurring is stated in the UI.
 - The crime data has no time-of-day. Lighting and terrain preferences affect
   the route choice, but the model does not prove a route is safer at night.
-- Google Maps receives only the start and destination and may calculate a
-  different walking route from the one shown in Odyssey.
+- Google Maps receives the start, destination and up to eight intermediate
+  points for non-shortest routes. Google can still recalculate the walk.
 - Offline or out of coverage, the app says what is stale or unavailable
   instead of faking liveness.
 
