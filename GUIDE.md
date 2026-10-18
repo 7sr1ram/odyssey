@@ -64,11 +64,11 @@ before relying on them. Odyssey has no server for submitting route reports.
 
 `odyssey-city-data/build_odyssey_data.py` builds a walking network from
 OpenStreetMap and trains a logistic-regression model on historical Police UK
-records. The current model card in `odyssey-app/data/model.json` lists 13
+records. The current model card in `odyssey-app/data/model.json` lists 14
 features, including road type, nightlife density, distance to the centre and
 prior crime counts. Lighting and terrain preferences are applied separately
 when the router compares paths. The reported held-out August 2026 AUC is
-0.971 versus 0.866 for a one-month crime baseline and 0.962 for a
+0.982 versus 0.866 for a one-month crime baseline and 0.962 for a
 stronger two-month crime-and-length rule. This evaluates prediction of
 reported crime in the dataset; it does not validate personal safety.
 

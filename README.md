@@ -53,11 +53,14 @@ popup cites Police UK with the month of the data.
 
 ## AI at the core
 
-Athena's model is a logistic regression (13 standardised features)
+Athena's model is a logistic regression (14 standardised features)
 trained by the pipeline on the real crime data, with a temporal split:
 trained on months to Jul 2026, evaluated on the held-out month Aug 2026.
-**AUC 0.971** on the held-out month, against **0.866** for a one-month
+**AUC 0.982** on the held-out month, against **0.866** for a one-month
 crime baseline and **0.962** for a stronger two-month crime-and-length rule.
+The model includes a decayed crime-history feature; higher and medium risk
+bands also require recent recorded incidents. The improvement over the
+stronger baseline is 0.020 AUC on this one held-out month.
 The router uses the model's score per segment with a 12-minute detour bound.
 This is a model comparison, not a validated estimate
 of an individual's safety. Full model card, coefficients
