@@ -68,24 +68,67 @@ WATER = [
 ]
 TIDE_EXPOSURE_M = 250.0
 
-# Curated safe havens — real staffed places; hours as of Oct 2026, verify.
-SAFE_HAVENS = [
-    {"id":"SH-01","name":"University of Southampton Security Lodge (Highfield gate)","lat":50.9362,"lng":-1.3957,"hours":"24/7","type":"Security","phone":"+44 23 8059 3311"},
-    {"id":"SH-02","name":"Sainsbury's Portswood","lat":50.9285,"lng":-1.3995,"hours":"07:00-23:00 (24h Fri/Sat)","type":"Retail"},
-    {"id":"SH-03","name":"Southampton Students' Union (The Bridge)","lat":50.9345,"lng":-1.3962,"hours":"08:00-02:00","type":"Students' Union"},
-    {"id":"SH-04","name":"Glen Eyre Halls reception","lat":50.9340,"lng":-1.4026,"hours":"24/7","type":"Halls reception"},
-    {"id":"SH-05","name":"Premier Inn Southampton City Centre","lat":50.9030,"lng":-1.4045,"hours":"24/7","type":"Hotel"},
-    {"id":"SH-06","name":"Southampton Central police front desk","lat":50.9085,"lng":-1.4115,"hours":"08:00-20:00","type":"Police","phone":"101"},
-    {"id":"SH-07","name":"Grand Harbour Hotel (Town Quay)","lat":50.8995,"lng":-1.4020,"hours":"24/7","type":"Hotel"},
-    {"id":"SH-08","name":"Harbour Lights Picturehouse, Ocean Village","lat":50.9045,"lng":-1.3940,"hours":"10:00-00:30","type":"Cinema"},
-    {"id":"SH-09","name":"Asda Southampton (Ocean Village)","lat":50.9060,"lng":-1.3935,"hours":"24/7","type":"Retail"},
-    {"id":"SH-10","name":"Southampton General Hospital main reception","lat":50.9174,"lng":-1.4327,"hours":"24/7","type":"Hospital","phone":"111"},
-    {"id":"SH-11","name":"Royal South Hants Hospital reception","lat":50.9074,"lng":-1.4051,"hours":"24/7","type":"Hospital","phone":"111"},
-    {"id":"SH-12","name":"Tesco Express Bevois Valley","lat":50.9207,"lng":-1.4040,"hours":"06:00-23:00","type":"Retail"},
-    {"id":"SH-13","name":"BP petrol station, Burgess Road","lat":50.9308,"lng":-1.3956,"hours":"24/7","type":"Petrol station"},
-    {"id":"SH-14","name":"Bitterne Leisure Centre","lat":50.9215,"lng":-1.3635,"hours":"06:30-22:00","type":"Leisure centre"},
-    {"id":"SH-15","name":"Woodmill Inn","lat":50.9257,"lng":-1.3800,"hours":"11:00-23:00","type":"Pub"},
-]
+# Curated Southampton venues. Check opening hours before relying on any venue.
+SAFE_HAVENS = [{'id': 'SH-01',
+  'name': 'University Campus Security (Building 32, University Road)',
+  'lat': 50.9362,
+  'lng': -1.3957,
+  'hours': '24/7 security team, call 023 8059 3311',
+  'type': 'Security',
+  'phone': '+44 23 8059 3311',
+  'segment_id': 'SEG-1174345837',
+  'source': 'Checked 18 Oct 2026: southampton.ac.uk/estates/services/security (24-hour point of '
+            'contact); position on University Road is approximate'},
+ {'id': 'SH-02',
+  'name': 'Southampton General Hospital Emergency Department',
+  'lat': 50.93301,
+  'lng': -1.4351,
+  'hours': '24/7',
+  'type': 'Hospital',
+  'segment_id': 'SEG-1190182979',
+  'source': 'Checked 18 Oct 2026: uhs.nhs.uk, Tremona Road SO16 6YD; position from postcode'},
+ {'id': 'SH-03',
+  'name': 'Glen Eyre Halls reception',
+  'lat': 50.943658,
+  'lng': -1.401025,
+  'hours': 'For Glen Eyre residents; hours vary',
+  'type': 'Halls reception',
+  'segment_id': 'SEG-331277401',
+  'source': 'Checked 18 Oct 2026: data.southampton.ac.uk point of service GLEN'},
+ {'id': 'SH-04',
+  'name': 'Leonardo Royal Hotel Southampton Grand Harbour',
+  'lat': 50.89981,
+  'lng': -1.407725,
+  'hours': '24/7 front desk',
+  'type': 'Hotel',
+  'segment_id': 'SEG-305084380',
+  'source': 'Checked 18 Oct 2026: hotel listing, West Quay Road SO15 1AG; position from postcode'},
+ {'id': 'SH-05',
+  'name': "Sainsbury's Portswood",
+  'lat': 50.926745,
+  'lng': -1.390877,
+  'hours': 'Mon-Sat 07:00-22:00, Sun 11:00-17:00',
+  'type': 'Retail',
+  'segment_id': 'SEG-33740675',
+  'source': 'Checked 18 Oct 2026: givefood.org.uk listing, 224 Portswood Road SO17 2LB; position '
+            'from postcode'},
+ {'id': 'SH-06',
+  'name': 'Harbour Lights Picturehouse, Ocean Village',
+  'lat': 50.894681,
+  'lng': -1.393244,
+  'hours': 'Opens 30 min before the first film, until the last film ends',
+  'type': 'Cinema',
+  'segment_id': 'SEG-154076501',
+  'source': 'Checked 18 Oct 2026: picturehouses.com, Ocean Village SO14 3TL; position from '
+            'postcode'},
+ {'id': 'SH-07',
+  'name': 'Bitterne Leisure Centre',
+  'lat': 50.916862,
+  'lng': -1.355712,
+  'hours': 'Daytime and evening; check times before you go',
+  'type': 'Leisure centre',
+  'segment_id': 'SEG-762168351',
+  'source': 'Checked 18 Oct 2026: bhliveactive.org.uk, Dean Road SO18 6AQ; position from postcode'}]
 
 TODAY = date.today()
 NOW_ISO = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -659,7 +702,7 @@ def train_model(segs, per_month, havens, months, offline):
     print("    comparison-fit coefficients for removed features:", removed_coefs)
 
     # evaluate on the held-out month
-    pairs_m, pairs_b = [], []
+    pairs_m, pairs_b, pairs_r, silent_m, silent_l = [], [], [], [], []
     for s in scored:
         mi = months_sorted.index(test_m)
         if mi < 2:
@@ -671,7 +714,13 @@ def train_model(segs, per_month, havens, months, offline):
         y = 1 if count(s, test_m) > 0 else 0
         pairs_m.append((logistic(z), y))
         pairs_b.append((lag1, y))             # baseline: last month's count
+        # stronger baseline: last two months' count, ties broken by length
+        pairs_r.append((lag1 + lag2 + s["length_m"] / 1e6, y))
+        if lag1 + lag2 == 0:                  # history is silent here
+            silent_m.append((logistic(z), y))
+            silent_l.append((s["length_m"], y))
     auc_m, auc_b = auc(pairs_m), auc(pairs_b)
+    auc_r, auc_sm, auc_sl = auc(pairs_r), auc(silent_m), auc(silent_l)
     base_rate = sum(yy for _, yy in pairs_m) / len(pairs_m)
 
     # predict next month for every scored segment (lags = last two months)
@@ -715,6 +764,16 @@ def train_model(segs, per_month, havens, months, offline):
             "baseline_description":
                 "predicts risk from last month's crime count alone",
             "base_rate_any_crime_next_month": round(base_rate, 4),
+            "auc_baseline_two_month_rule": round(auc_r, 3) if auc_r else None,
+            "two_month_rule_description":
+                "last two months' crime count, ties broken by path length",
+            "share_scored_with_no_recent_crime": round(len(silent_m) / max(1, len(pairs_m)), 3),
+            "auc_model_no_recent_crime": round(auc_sm, 3) if auc_sm else None,
+            "auc_length_only_no_recent_crime": round(auc_sl, 3) if auc_sl else None,
+            "honest_reading":
+                "Recent crime explains most of the ranking. The model adds most "
+                "where a path had no crime in the last two months, where crime "
+                "history alone cannot rank paths.",
         },
         "bands": {
             "high": f"top 10% of scored segments by predicted risk "
@@ -873,7 +932,7 @@ def main():
         near = min(segs, key=lambda s:
                    dist_m(s["coordinates"][0], (h["lat"], h["lng"])))
         h["segment_id"] = near["id"]
-        h["source"] = "curated (hours hand-checked Oct 2026)"
+        h.setdefault("source", "curated venue; confirm opening hours before visiting")
 
     # preference-field coverage, computed from the real data (the app shows
     # these numbers as footnotes in the preferences modal)
